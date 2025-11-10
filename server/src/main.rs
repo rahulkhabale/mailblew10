@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().with_env_filter("info").init();
+    tracing_subscriber::fmt().with_env_filter("debug").init();
 
     info!("Starting Custom SMTP Server with REST API");
 
