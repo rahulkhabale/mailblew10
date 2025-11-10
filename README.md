@@ -6,6 +6,20 @@ A production-ready, custom SMTP server with automatic IP rotation, built for Saa
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
 ![Next.js](https://img.shields.io/badge/next.js-16.0-black.svg)
 
+**🔗 Repository**: https://github.com/rahulkhabale/mailblew10
+
+## Quick Deploy
+
+```bash
+# Clone and deploy to your server
+ssh root@your-server-ip
+cd /opt
+git clone https://github.com/rahulkhabale/mailblew10.git mailblew
+cd mailblew && ./deploy-to-contabo.sh
+```
+
+See [SIMPLE_DEPLOY.md](SIMPLE_DEPLOY.md) for complete deployment guide.
+
 ## Features
 
 ### Backend (Rust)
