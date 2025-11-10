@@ -9,11 +9,14 @@ use smtp::{IpPoolManager, SmtpServer};
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
+use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().with_env_filter("debug").init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive("debug".parse().unwrap()))
+        .init();
 
     info!("Starting Custom SMTP Server with REST API");
 
