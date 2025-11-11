@@ -3,6 +3,39 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Domain {
+    pub id: String,
+    pub domain: String,
+    pub verification_code: String,
+    pub dkim_selector: String,
+    pub dkim_public_key: String,
+    #[serde(skip_serializing)]
+    pub dkim_private_key: String,
+    pub verified: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DomainRequest {
+    pub domain: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsRecords {
+    pub verification: DnsRecord,
+    pub spf: DnsRecord,
+    pub dkim: DnsRecord,
+    pub dmarc: DnsRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsRecord {
+    pub record_type: String,
+    pub record_name: String,
+    pub record_value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmtpConfig {
     pub helo_domain: String,
     pub smtp_port: u16, // Usually 25 for direct delivery

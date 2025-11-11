@@ -1,3 +1,6 @@
+mod domains;
+
+use crate::domain_manager::DomainManager;
 use crate::models::*;
 use crate::smtp::SmtpServer;
 use axum::{
@@ -16,10 +19,14 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct AppState {
     pub smtp_server: Arc<SmtpServer>,
+    pub domain_manager: Arc<DomainManager>,
 }
 
-pub fn create_router(smtp_server: Arc<SmtpServer>) -> Router {
-    let state = AppState { smtp_server };
+pub fn create_router(smtp_server: Arc<SmtpServer>, domain_manager: Arc<DomainManager>) -> Router {
+    let state = AppState {
+        smtp_server,
+        domain_manager,
+    };
 
     Router::new()
         // Email routes
@@ -31,6 +38,13 @@ pub fn create_router(smtp_server: Arc<SmtpServer>) -> Router {
         .route("/api/ips", post(add_ip))
         .route("/api/ips/:id", put(update_ip))
         .route("/api/ips/:id", delete(delete_ip))
+        // Domain routes
+        .route("/api/domains", post(domains::add_domain))
+        .route("/api/domains", get(domains::get_domains))
+        .route("/api/domains/:id", get(domains::get_domain))
+        .route("/api/domains/:id/dns", get(domains::get_dns_records))
+        .route("/api/domains/:id/verify", post(domains::verify_domain))
+        .route("/api/domains/:id", delete(domains::delete_domain))
         // Stats routes
         .route("/api/stats", get(get_stats))
         .with_state(state)

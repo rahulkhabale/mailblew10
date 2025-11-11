@@ -1,9 +1,11 @@
 mod api;
+mod domain_manager;
 mod models;
 mod smtp;
 
 use anyhow::Result;
 use chrono::Utc;
+use domain_manager::DomainManager;
 use models::{IpConfig, SmtpConfig};
 use smtp::{IpPoolManager, SmtpServer};
 use std::sync::Arc;
@@ -31,9 +33,10 @@ async fn main() -> Result<()> {
 
     let ip_pool = Arc::new(IpPoolManager::new(ip_configs));
     let smtp_server = Arc::new(SmtpServer::new(smtp_config, ip_pool.clone(), 50));
+    let domain_manager = Arc::new(DomainManager::new());
 
     // Create API router
-    let app = api::create_router(smtp_server)
+    let app = api::create_router(smtp_server, domain_manager)
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
