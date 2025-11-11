@@ -222,6 +222,22 @@ impl SmtpServer {
         Ok(mx_list)
     }
 
+    async fn resolve_hostname(&self, hostname: &str) -> Result<String> {
+        let resolver = TokioAsyncResolver::tokio(
+            ResolverConfig::default(),
+            ResolverOpts::default()
+        );
+
+        let response = resolver.lookup_ip(hostname).await
+            .context(format!("Failed to resolve hostname: {}", hostname))?;
+
+        let ip = response.iter().next()
+            .context("No IP addresses found for hostname")?;
+
+        debug!("Resolved {} to {}", hostname, ip);
+        Ok(ip.to_string())
+    }
+
     async fn send_with_retry(
         &self,
         source_ip: &str,
@@ -244,6 +260,15 @@ impl SmtpServer {
 
         // Try each MX server
         for mx_server in &mx_servers {
+            // Resolve MX hostname to IP
+            let mx_ip = match self.resolve_hostname(mx_server).await {
+                Ok(ip) => ip,
+                Err(e) => {
+                    warn!("Failed to resolve {}: {}", mx_server, e);
+                    continue; // Try next MX server
+                }
+            };
+
             attempts = 0;
             loop {
                 attempts += 1;
@@ -253,10 +278,10 @@ impl SmtpServer {
 
                 let client = SmtpClient::new(self.config.clone(), Some(ip_addr));
 
-                info!("Attempting to send via MX server: {}", mx_server);
-                match client.send_email(email, mx_server).await {
+                info!("Attempting to send via MX server: {} ({})", mx_server, mx_ip);
+                match client.send_email(email, &mx_ip).await {
                     Ok(response) => {
-                        info!("Successfully sent via MX server: {}", mx_server);
+                        info!("Successfully sent via MX server: {} ({})", mx_server, mx_ip);
                         return Ok(response);
                     }
                     Err(e) => {
