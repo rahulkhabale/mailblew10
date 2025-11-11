@@ -4,12 +4,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SmtpConfig {
-    pub host: String,
-    pub port: u16,
-    pub username: Option<String>,
-    pub password: Option<String>,
-    pub use_tls: bool,
     pub helo_domain: String,
+    pub smtp_port: u16, // Usually 25 for direct delivery
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

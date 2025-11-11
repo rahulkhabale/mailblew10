@@ -20,25 +20,13 @@ async fn main() -> Result<()> {
 
     info!("Starting Custom SMTP Server with REST API");
 
-    // Initialize with some default IPs - these will be managed via API
-    let ip_configs = vec![
-        IpConfig {
-            id: Uuid::new_v4().to_string(),
-            ip: "127.0.0.1".to_string(), // Default localhost for testing
-            interface_name: "lo0".to_string(),
-            enabled: true,
-            created_at: Some(Utc::now()),
-        },
-    ];
+    // Initialize with empty IP pool - IPs will be added via API
+    let ip_configs: Vec<IpConfig> = vec![];
 
-    // SMTP configuration - UPDATE WITH YOUR SMTP SERVER DETAILS
+    // SMTP configuration for direct delivery (no relay needed!)
     let smtp_config = SmtpConfig {
-        host: "smtp.gmail.com".to_string(), // or your SMTP relay server
-        port: 587,
-        username: Some("your-email@gmail.com".to_string()),
-        password: Some("your-app-password".to_string()),
-        use_tls: false,
-        helo_domain: "yourdomain.com".to_string(),
+        helo_domain: "mailblew.net".to_string(),
+        smtp_port: 25, // Standard SMTP port for direct delivery
     };
 
     let ip_pool = Arc::new(IpPoolManager::new(ip_configs));

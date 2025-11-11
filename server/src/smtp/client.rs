@@ -1,6 +1,5 @@
 use crate::models::{EmailMessage, SmtpConfig};
 use anyhow::Result;
-use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
 use std::net::{IpAddr, SocketAddr};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -18,16 +17,17 @@ impl SmtpClient {
         Self { config, source_ip }
     }
 
-    pub async fn send_email(&self, email: &EmailMessage) -> Result<String> {
+    pub async fn send_email(&self, email: &EmailMessage, mx_server: &str) -> Result<String> {
         // Create TCP connection with optional source IP binding
+        let server_addr = format!("{}:{}", mx_server, self.config.smtp_port);
+
         let socket = if let Some(ip) = self.source_ip {
             let bind_addr = SocketAddr::new(ip, 0);
             let socket = tokio::net::TcpSocket::new_v4()?;
             socket.bind(bind_addr)?;
-            let server_addr = format!("{}:{}", self.config.host, self.config.port);
             socket.connect(server_addr.parse()?).await?
         } else {
-            TcpStream::connect(format!("{}:{}", self.config.host, self.config.port)).await?
+            TcpStream::connect(&server_addr).await?
         };
 
         let (read_half, mut write_half) = socket.into_split();
@@ -42,21 +42,6 @@ impl SmtpClient {
             .await?;
         let ehlo_response = self.read_response(&mut reader).await?;
         debug!("EHLO response: {}", ehlo_response);
-
-        // AUTH LOGIN if credentials provided
-        if let (Some(username), Some(password)) = (&self.config.username, &self.config.password) {
-            self.send_command(&mut write_half, "AUTH LOGIN").await?;
-            self.read_response(&mut reader).await?;
-
-            let encoded_username = general_purpose::STANDARD.encode(username);
-            self.send_command(&mut write_half, &encoded_username).await?;
-            self.read_response(&mut reader).await?;
-
-            let encoded_password = general_purpose::STANDARD.encode(password);
-            self.send_command(&mut write_half, &encoded_password).await?;
-            let auth_response = self.read_response(&mut reader).await?;
-            debug!("AUTH response: {}", auth_response);
-        }
 
         // MAIL FROM
         self.send_command(&mut write_half, &format!("MAIL FROM:<{}>", email.from))

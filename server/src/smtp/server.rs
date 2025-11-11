@@ -3,12 +3,14 @@ use crate::smtp::client::SmtpClient;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use dashmap::DashMap;
+use hickory_resolver::TokioAsyncResolver;
+use hickory_resolver::config::*;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Semaphore};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct IpStatistics {
@@ -186,37 +188,93 @@ impl SmtpServer {
         }
     }
 
+    async fn lookup_mx_servers(&self, domain: &str) -> Result<Vec<String>> {
+        let resolver = TokioAsyncResolver::tokio(
+            ResolverConfig::default(),
+            ResolverOpts::default()
+        );
+
+        let mx_records = resolver.mx_lookup(domain).await
+            .context(format!("Failed to lookup MX records for {}", domain))?;
+
+        let mut servers: Vec<(u16, String)> = mx_records
+            .iter()
+            .map(|mx| (mx.preference(), mx.exchange().to_string()))
+            .collect();
+
+        // Sort by preference (lower is higher priority)
+        servers.sort_by_key(|&(pref, _)| pref);
+
+        let mx_list: Vec<String> = servers.into_iter().map(|(_, host)| {
+            // Remove trailing dot if present
+            let mut h = host;
+            if h.ends_with('.') {
+                h.pop();
+            }
+            h
+        }).collect();
+
+        if mx_list.is_empty() {
+            anyhow::bail!("No MX records found for {}", domain);
+        }
+
+        debug!("Found MX servers for {}: {:?}", domain, mx_list);
+        Ok(mx_list)
+    }
+
     async fn send_with_retry(
         &self,
         source_ip: &str,
         email: &EmailMessage,
         max_retries: u32,
     ) -> Result<String> {
+        // Extract domain from first recipient
+        let recipient = email.to.first()
+            .context("No recipients specified")?;
+        let domain = recipient.split('@')
+            .nth(1)
+            .context("Invalid email format")?;
+
+        // Lookup MX servers
+        let mx_servers = self.lookup_mx_servers(domain).await?;
+        info!("MX servers for {}: {:?}", domain, mx_servers);
+
         let mut attempts = 0;
+        let mut last_error = None;
 
-        loop {
-            attempts += 1;
+        // Try each MX server
+        for mx_server in &mx_servers {
+            attempts = 0;
+            loop {
+                attempts += 1;
 
-            let ip_addr = IpAddr::from_str(source_ip)
-                .context(format!("Invalid IP address: {}", source_ip))?;
+                let ip_addr = IpAddr::from_str(source_ip)
+                    .context(format!("Invalid IP address: {}", source_ip))?;
 
-            let client = SmtpClient::new(self.config.clone(), Some(ip_addr));
+                let client = SmtpClient::new(self.config.clone(), Some(ip_addr));
 
-            match client.send_email(email).await {
-                Ok(response) => return Ok(response),
-                Err(e) => {
-                    if attempts >= max_retries {
-                        return Err(anyhow::anyhow!(
-                            "Failed after {} attempts: {}",
-                            attempts,
-                            e
-                        ));
+                info!("Attempting to send via MX server: {}", mx_server);
+                match client.send_email(email, mx_server).await {
+                    Ok(response) => {
+                        info!("Successfully sent via MX server: {}", mx_server);
+                        return Ok(response);
                     }
-                    warn!("Send attempt {} failed, retrying... Error: {}", attempts, e);
-                    tokio::time::sleep(Duration::from_secs(2u64.pow(attempts - 1))).await;
+                    Err(e) => {
+                        warn!("Send attempt {} to {} failed: {}", attempts, mx_server, e);
+                        last_error = Some(e);
+                        if attempts >= max_retries {
+                            break; // Try next MX server
+                        }
+                        tokio::time::sleep(Duration::from_secs(2u64.pow(attempts - 1))).await;
+                    }
                 }
             }
         }
+
+        Err(anyhow::anyhow!(
+            "Failed to send email after trying all MX servers: {}",
+            last_error.map(|e| e.to_string()).unwrap_or_else(|| "Unknown error".to_string())
+        ))
     }
 
     pub fn get_delivery(&self, id: &str) -> Option<EmailDelivery> {
