@@ -97,19 +97,34 @@ impl SmtpClient {
         &self,
         reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
     ) -> Result<String> {
-        let mut line = String::new();
-        reader.read_line(&mut line).await?;
-        let trimmed = line.trim().to_string();
-        debug!("Received: {}", trimmed);
+        let mut lines = Vec::new();
 
-        // Check for error codes (4xx, 5xx)
-        if let Some(code) = trimmed.split_whitespace().next() {
-            if code.starts_with('4') || code.starts_with('5') {
-                anyhow::bail!("SMTP error: {}", trimmed);
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line).await?;
+            let trimmed = line.trim().to_string();
+            debug!("Received: {}", trimmed);
+
+            // Check for error codes (4xx, 5xx)
+            if let Some(code) = trimmed.split_whitespace().next() {
+                if code.starts_with('4') || code.starts_with('5') {
+                    anyhow::bail!("SMTP error: {}", trimmed);
+                }
+            }
+
+            lines.push(trimmed.clone());
+
+            // Check if this is the last line (format: "250 OK" vs "250-More coming")
+            if trimmed.len() >= 3 {
+                let code = &trimmed[0..3];
+                if trimmed.len() == 3 || (trimmed.len() > 3 && trimmed.chars().nth(3) == Some(' ')) {
+                    // This is the last line
+                    break;
+                }
             }
         }
 
-        Ok(trimmed)
+        Ok(lines.join("\n"))
     }
 
     fn build_email_body(&self, email: &EmailMessage) -> Result<String> {
