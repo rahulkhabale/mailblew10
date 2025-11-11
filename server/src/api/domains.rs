@@ -1,4 +1,4 @@
-use crate::domain_manager::DomainManager;
+use crate::api::AppState;
 use crate::models::{DomainRequest, DnsRecords};
 use axum::{
     extract::{Path, State},
@@ -6,13 +6,13 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use std::sync::Arc;
 use tracing::error;
 
 pub async fn add_domain(
-    State(manager): State<Arc<DomainManager>>,
+    State(state): State<AppState>,
     Json(req): Json<DomainRequest>,
 ) -> impl IntoResponse {
+    let manager = &state.domain_manager;
     match manager.add_domain(req.domain) {
         Ok(domain) => (StatusCode::CREATED, Json(domain)).into_response(),
         Err(e) => {
@@ -22,28 +22,28 @@ pub async fn add_domain(
     }
 }
 
-pub async fn get_domains(State(manager): State<Arc<DomainManager>>) -> impl IntoResponse {
-    let domains = manager.get_all_domains();
+pub async fn get_domains(State(state): State<AppState>) -> impl IntoResponse {
+    let domains = state.domain_manager.get_all_domains();
     Json(domains)
 }
 
 pub async fn get_domain(
-    State(manager): State<Arc<DomainManager>>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match manager.get_domain(&id) {
+    match state.domain_manager.get_domain(&id) {
         Some(domain) => Json(domain).into_response(),
         None => (StatusCode::NOT_FOUND, "Domain not found").into_response(),
     }
 }
 
 pub async fn get_dns_records(
-    State(manager): State<Arc<DomainManager>>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match manager.get_domain(&id) {
+    match state.domain_manager.get_domain(&id) {
         Some(domain) => {
-            let records = manager.get_dns_records(&domain);
+            let records = state.domain_manager.get_dns_records(&domain);
             Json(records).into_response()
         }
         None => (StatusCode::NOT_FOUND, "Domain not found").into_response(),
@@ -51,10 +51,10 @@ pub async fn get_dns_records(
 }
 
 pub async fn verify_domain(
-    State(manager): State<Arc<DomainManager>>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match manager.verify_domain(&id).await {
+    match state.domain_manager.verify_domain(&id).await {
         Ok(verified) => {
             if verified {
                 (StatusCode::OK, Json(serde_json::json!({ "verified": true }))).into_response()
@@ -70,10 +70,10 @@ pub async fn verify_domain(
 }
 
 pub async fn delete_domain(
-    State(manager): State<Arc<DomainManager>>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match manager.delete_domain(&id) {
+    match state.domain_manager.delete_domain(&id) {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {
             error!("Failed to delete domain: {}", e);
