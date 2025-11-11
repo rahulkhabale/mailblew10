@@ -5,7 +5,8 @@ import Dashboard from '@/components/Dashboard';
 import IpManagement from '@/components/IpManagement';
 import EmailComposer from '@/components/EmailComposer';
 import EmailDeliveries from '@/components/EmailDeliveries';
-import { Mail, Server, BarChart, Send } from 'lucide-react';
+import DomainManagement from '@/components/DomainManagement';
+import { Mail, Server, BarChart, Send, Globe } from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -14,6 +15,7 @@ export default function Home() {
     { id: 'dashboard', label: 'Dashboard', icon: BarChart },
     { id: 'compose', label: 'Compose Email', icon: Send },
     { id: 'deliveries', label: 'Email Deliveries', icon: Mail },
+    { id: 'domains', label: 'Domains', icon: Globe },
     { id: 'ips', label: 'IP Management', icon: Server },
   ];
 
@@ -59,6 +61,7 @@ export default function Home() {
             {activeTab === 'dashboard' && <Dashboard />}
             {activeTab === 'compose' && <EmailComposer />}
             {activeTab === 'deliveries' && <EmailDeliveries />}
+            {activeTab === 'domains' && <DomainManagement />}
             {activeTab === 'ips' && <IpManagement />}
           </div>
         </div>
